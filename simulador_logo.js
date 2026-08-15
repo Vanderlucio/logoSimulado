@@ -868,60 +868,39 @@ function stopSimulation(idOrAll) {
     throw new Error(`Simulação #${idOrAll} não encontrada.`);
 }
 
-// ── Cenários Pré-Configurados ─────────────────────────────────────────
+// ── Cenários e Configurações de Teste ─────────────────────────────────
 
 export function applyScenario(name) {
     const sName = (name || '').toLowerCase().trim();
     stopSimulation('all');
 
     switch (sName) {
-        case 'balanca':
-        case 'balança':
-        case 'martinrea':
-            // Reseta e configura estado da balança
-            vmBuffer.fill(0);
-            setVmBit(1024, 0, true);   // I1 / I0.0 = true
-            setVmBit(1024, 1, true);   // I2 / I0.1 = true (Porta Fechada)
-            setVmBit(1246, 0, false);  // NI1 / DB1,X1246.0 = false (Trava Bloqueada)
-            setVmWord(1032, 2540);     // AI1 = 2540g (Peso na balança)
-            return `Cenário BALANÇA MARTINREA aplicado:\n` +
-                   `   ▶ I0.1 (I2)         = ON (1) -> Porta FECHADA\n` +
-                   `   ▶ DB1,X1246.0 (NI1) = OFF (0) -> Trava BLOQUEADA\n` +
-                   `   ▶ AI1 (DB1,WORD1032)= 2540 -> Peso inicial (2.540 kg)`;
-
         case 'esteira':
             vmBuffer.fill(0);
-            setVmBit(1024, 0, true);   // I1 = Sensor de Presença de Peça
-            setVmBit(1024, 1, true);   // I2 = Botão de Emergência OK
-            setVmBit(1064, 0, true);   // Q1 = Motor Esteira Ligado
-            setVmWord(1032, 1750);     // AI1 = Rotação RPM Motor (1750 RPM)
-            setVmWord(1072, 800);      // AQ1 = Referência de Inversor (80.0%)
-            return `Cenário ESTEIRA INDUSTRIAL aplicado:\n` +
-                   `   ▶ I1 (DB1,X1024.0)  = ON (1) -> Sensor Peça Presente\n` +
-                   `   ▶ I2 (DB1,X1024.1)  = ON (1) -> Emergência OK\n` +
-                   `   ▶ Q1 (DB1,X1064.0)  = ON (1) -> Motor da Esteira Ativo\n` +
-                   `   ▶ AI1 (DB1,WORD1032)= 1750 -> Velocidade RPM\n` +
-                   `   ▶ AQ1 (DB1,WORD1072)= 800  -> Setpoint Inversor`;
+            setVmBit(1024, 0, true);   // I1 = Sensor de Entrada
+            setVmBit(1024, 1, true);   // I2 = Sensor de Segurança
+            setVmBit(1064, 0, true);   // Q1 = Motor Principal
+            setVmWord(1032, 1750);     // AI1 = Velocidade RPM
+            setVmWord(1072, 800);      // AQ1 = Referência de Inversor
+            return `Cenário ESTEIRA INDUSTRIAL aplicado (I1=1, I2=1, Q1=1, AI1=1750, AQ1=800).`;
 
         case 'tanque':
             vmBuffer.fill(0);
-            setVmBit(1064, 0, true);   // Q1 = Válvula de Entrada Aberta
-            setVmBit(1064, 1, false);  // Q2 = Válvula de Dreno Fechada
-            setVmWord(1032, 450);      // AI1 = Nível atual (450 Litros)
+            setVmBit(1064, 0, true);   // Q1 = Válvula de Enchimento
+            setVmBit(1064, 1, false);  // Q2 = Válvula de Dreno
+            setVmWord(1032, 450);      // AI1 = Nível atual
             startWaveSimulation('AI1', 200, 950, 8000);
-            return `Cenário TANQUE DE NÍVEL aplicado:\n` +
-                   `   ▶ AI1 (DB1,WORD1032)= Nível dinâmico com onda senoidal [200L..950L]\n` +
-                   `   ▶ Q1 (DB1,X1064.0)  = ON (1) -> Válvula de Enchimento\n` +
-                   `   ▶ Q2 (DB1,X1064.1)  = OFF (0) -> Dreno`;
+            return `Cenário TANQUE DE NÍVEL aplicado (AI1 oscilando dinamicamente de 200 a 950, Q1=1, Q2=0).`;
 
         case 'limpo':
         case 'reset':
         case 'zerar':
+        case 'padrao':
             vmBuffer.fill(0);
             return `Memória VM completamente ZERADA (todos os 2048 bytes = 0).`;
 
         default:
-            throw new Error(`Cenário "${name}" não existe. Opções: balanca, esteira, tanque, limpo`);
+            throw new Error(`Cenário "${name}" não existe. Opções: esteira, tanque, limpo`);
     }
 }
 
@@ -932,16 +911,16 @@ export function applyScenario(name) {
  */
 export function printStatusOverview() {
     console.log(`\n${C.cyan}${C.bold}╔═══════════════════════════════════════════════════════════════════════════════════════╗${C.reset}`);
-    console.log(`${C.cyan}${C.bold}║                  📊 PAINEL DE STATUS GERAL - SIEMENS LOGO! (DB1)                     ║${C.reset}`);
+    console.log(`${C.cyan}${C.bold}║                  📊 PAINEL DE MEMÓRIA E I/O - SIEMENS LOGO! (DB1)                   ║${C.reset}`);
     console.log(`${C.cyan}${C.bold}╚═══════════════════════════════════════════════════════════════════════════════════════╝${C.reset}`);
 
-    // I (Entradas)
+    // I (Entradas Digitais)
     const iBits = [];
     for (let i = 1; i <= 8; i++) {
         const v = getVmBit(1024, i - 1);
         iBits.push(`I${i}:${v ? C.green + '● 1' : C.dim + '○ 0'}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ ENTRADAS DIGITAIS (I1..I8) [VM 1024]:${C.reset}  ${iBits.join('  ')}`);
+    console.log(` ${C.bold}▶ ENTRADAS DIGITAIS (I1..I8) [VM 1024]:${C.reset}       ${iBits.join('  ')}`);
 
     // AI (Entradas Analógicas)
     const aiWords = [];
@@ -950,15 +929,15 @@ export function printStatusOverview() {
         const v = getVmWord(off);
         aiWords.push(`AI${i}:${C.yellow}${v}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ ENTRADAS ANALÓGICAS (AI1..AI4) [VM 1032..]:${C.reset} ${aiWords.join('   ')}`);
+    console.log(` ${C.bold}▶ ENTRADAS ANALÓGICAS (AI1..AI4) [VM 1032..]:${C.reset}  ${aiWords.join('   ')}`);
 
-    // Q (Saídas)
+    // Q (Saídas Digitais)
     const qBits = [];
     for (let i = 1; i <= 8; i++) {
         const v = getVmBit(1064, i - 1);
         qBits.push(`Q${i}:${v ? C.green + '● 1' : C.dim + '○ 0'}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ SAÍDAS DIGITAIS (Q1..Q8) [VM 1064]:${C.reset}    ${qBits.join('  ')}`);
+    console.log(` ${C.bold}▶ SAÍDAS DIGITAIS (Q1..Q8) [VM 1064]:${C.reset}         ${qBits.join('  ')}`);
 
     // AQ (Saídas Analógicas)
     const aqWords = [];
@@ -967,34 +946,59 @@ export function printStatusOverview() {
         const v = getVmWord(off);
         aqWords.push(`AQ${i}:${C.yellow}${v}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ SAÍDAS ANALÓGICAS (AQ1..AQ2) [VM 1072..]:${C.reset}   ${aqWords.join('   ')}`);
+    console.log(` ${C.bold}▶ SAÍDAS ANALÓGICAS (AQ1..AQ2) [VM 1072..]:${C.reset}    ${aqWords.join('   ')}`);
 
-    // M (Flags)
+    // M (Flags / Merkers)
     const mBits = [];
     for (let i = 1; i <= 8; i++) {
         const v = getVmBit(1104, i - 1);
         mBits.push(`M${i}:${v ? C.green + '● 1' : C.dim + '○ 0'}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ FLAGS DIGITAIS (M1..M8) [VM 1104]:${C.reset}        ${mBits.join('  ')}`);
+    console.log(` ${C.bold}▶ FLAGS DIGITAIS (M1..M8) [VM 1104]:${C.reset}             ${mBits.join('  ')}`);
 
-    // NI (Network Inputs)
+    // AM (Flags Analógicas)
+    const amWords = [];
+    for (let i = 1; i <= 2; i++) {
+        const off = 1118 + (i - 1) * 2;
+        const v = getVmWord(off);
+        amWords.push(`AM${i}:${C.yellow}${v}${C.reset}`);
+    }
+    console.log(` ${C.bold}▶ FLAGS ANALÓGICAS (AM1..AM2) [VM 1118..]:${C.reset}     ${amWords.join('   ')}`);
+
+    // NI (Network Inputs Digitais)
     const niBits = [];
     for (let i = 1; i <= 8; i++) {
         const v = getVmBit(1246, i - 1);
         niBits.push(`NI${i}:${v ? C.green + '● 1' : C.dim + '○ 0'}${C.reset}`);
     }
-    console.log(` ${C.bold}▶ ENTRADAS DE REDE (NI1..NI8) [VM 1246]:${C.reset}    ${niBits.join(' ')}`);
+    console.log(` ${C.bold}▶ ENTRADAS DE REDE (NI1..NI8) [VM 1246]:${C.reset}         ${niBits.join('  ')}`);
 
-    // NAI & NAQ
-    const nai1 = getVmWord(1262);
-    const naq1 = getVmWord(1406);
-    console.log(` ${C.bold}▶ REDE ANALÓGICA:${C.reset} NAI1:${C.yellow}${nai1}${C.reset} (VM 1262) | NAQ1:${C.yellow}${naq1}${C.reset} (VM 1406)`);
+    // NAI (Network Analog Inputs)
+    const naiWords = [];
+    for (let i = 1; i <= 2; i++) {
+        const off = 1262 + (i - 1) * 2;
+        const v = getVmWord(off);
+        naiWords.push(`NAI${i}:${C.yellow}${v}${C.reset}`);
+    }
+    console.log(` ${C.bold}▶ REDE ANALÓGICA IN (NAI1..NAI2) [VM 1262..]:${C.reset}  ${naiWords.join('   ')}`);
 
-    // Balança / Tags Principais
-    const i01 = getVmBit(1024, 1);
-    const trava = getVmBit(1246, 0);
-    console.log(`\n ${C.cyan}📌 Status Aplicação Balança:${C.reset} Porta (I0.1)=${i01 ? C.green + 'FECHADA (1)' : C.red + 'ABERTA (0)'}${C.reset} | Trava (DB1,X1246.0)=${trava ? C.green + 'LIBERADA (1)' : C.yellow + 'BLOQUEADA (0)'}${C.reset}`);
-    
+    // NQ (Network Outputs Digitais)
+    const nqBits = [];
+    for (let i = 1; i <= 8; i++) {
+        const v = getVmBit(1390, i - 1);
+        nqBits.push(`NQ${i}:${v ? C.green + '● 1' : C.dim + '○ 0'}${C.reset}`);
+    }
+    console.log(` ${C.bold}▶ SAÍDAS DE REDE (NQ1..NQ8) [VM 1390]:${C.reset}           ${nqBits.join('  ')}`);
+
+    // NAQ (Network Analog Outputs)
+    const naqWords = [];
+    for (let i = 1; i <= 2; i++) {
+        const off = 1406 + (i - 1) * 2;
+        const v = getVmWord(off);
+        naqWords.push(`NAQ${i}:${C.yellow}${v}${C.reset}`);
+    }
+    console.log(` ${C.bold}▶ REDE ANALÓGICA OUT (NAQ1..NAQ2) [VM 1406..]:${C.reset} ${naqWords.join('   ')}`);
+
     // Simulações ativas
     if (activeSimulations.size > 0) {
         console.log(`\n ${C.magenta}⚡ Simulações Ativas (${activeSimulations.size}):${C.reset}`);
@@ -1026,7 +1030,7 @@ export function printBlockDetails(blockKey) {
     console.log(`${C.cyan}${C.bold}│ Tag    │ Endereço S7     │ Endereço DB1       │ Tipo     │ Valor Atual         │${C.reset}`);
     console.log(`${C.cyan}${C.bold}├────────┼─────────────────┼────────────────────┼──────────┼─────────────────────┤${C.reset}`);
 
-    const maxItems = Math.min(map.count, 16); // Mostra até 16 primeiros para não poluir
+    const maxItems = Math.min(map.count, 16);
     for (let i = 1; i <= maxItems; i++) {
         const tag = `${upper}${i}`;
         const target = parseTag(tag);
@@ -1159,21 +1163,25 @@ ${C.cyan}${C.bold}╔═══════════════════�
      - IP: ${C.cyan}127.0.0.1${C.reset} | Porta: ${C.cyan}${PORT}${C.reset} | Rack: ${C.cyan}0${C.reset} | Slot: ${C.cyan}1${C.reset} (ou TSAP 0x0100 / 0x0200)
      - DB Padrão: ${C.cyan}DB1${C.reset} (cobrindo todo o mapa de memória VM)
 
-  ${C.bold}📋 MAPEAMENTO DE BLOCOS DO LOGO! (DB1):${C.reset}
-     • ${C.yellow}I${C.reset}   (1024..1031) : Entradas Digitais I1..I64      | Ex: ${C.dim}DB1,X1024.0 ou I1${C.reset}
-     • ${C.yellow}AI${C.reset}  (1032..1063) : Entradas Analógicas AI1..AI16  | Ex: ${C.dim}DB1,WORD1032 ou AI1${C.reset}
-     • ${C.yellow}Q${C.reset}   (1064..1071) : Saídas Digitais Q1..Q64        | Ex: ${C.dim}DB1,X1064.0 ou Q1${C.reset}
-     • ${C.yellow}AQ${C.reset}  (1072..1103) : Saídas Analógicas AQ1..AQ16    | Ex: ${C.dim}DB1,WORD1072 ou AQ1${C.reset}
-     • ${C.yellow}M${C.reset}   (1104..1117) : Flags Digitais M1..M112        | Ex: ${C.dim}DB1,X1104.0 ou M1${C.reset}
-     • ${C.yellow}AM${C.reset}  (1118..1245) : Flags Analógicas AM1..AM64     | Ex: ${C.dim}DB1,WORD1118 ou AM1${C.reset}
-     • ${C.yellow}NI${C.reset}  (1246..1261) : Entradas de Rede NI1..NI128    | Ex: ${C.dim}DB1,X1246.0 (Trava)${C.reset}
-     • ${C.yellow}NAI${C.reset} (1262..1389) : Entradas de Rede Analógicas   | Ex: ${C.dim}DB1,WORD1262 ou NAI1${C.reset}
-     • ${C.yellow}NQ${C.reset}  (1390..1405) : Saídas de Rede NQ1..NQ128      | Ex: ${C.dim}DB1,X1390.0 ou NQ1${C.reset}
-     • ${C.yellow}NAQ${C.reset} (1406..1469) : Saídas de Rede Analógicas     | Ex: ${C.dim}DB1,WORD1406 ou NAQ1${C.reset}
+  ${C.bold}📋 MAPEAMENTO DE BLOCOS DE MEMÓRIA (DB1):${C.reset}
+     • ${C.yellow}I${C.reset}   (1024..1031) : Entradas Digitais I1..I64      | Ex: ${C.dim}set I1 1  ou  set DB1,X1024.0 1${C.reset}
+     • ${C.yellow}AI${C.reset}  (1032..1063) : Entradas Analógicas AI1..AI16  | Ex: ${C.dim}set AI1 500  ou  set DB1,WORD1032 500${C.reset}
+     • ${C.yellow}Q${C.reset}   (1064..1071) : Saídas Digitais Q1..Q64        | Ex: ${C.dim}set Q1 1  ou  set DB1,X1064.0 1${C.reset}
+     • ${C.yellow}AQ${C.reset}  (1072..1103) : Saídas Analógicas AQ1..AQ16    | Ex: ${C.dim}set AQ1 750  ou  set DB1,WORD1072 750${C.reset}
+     • ${C.yellow}M${C.reset}   (1104..1117) : Flags Digitais M1..M112        | Ex: ${C.dim}set M1 1  ou  set DB1,X1104.0 1${C.reset}
+     • ${C.yellow}AM${C.reset}  (1118..1245) : Flags Analógicas AM1..AM64     | Ex: ${C.dim}set AM1 300  ou  set DB1,WORD1118 300${C.reset}
+     • ${C.yellow}NI${C.reset}  (1246..1261) : Entradas de Rede NI1..NI128    | Ex: ${C.dim}set NI1 1  ou  set DB1,X1246.0 1${C.reset}
+     • ${C.yellow}NAI${C.reset} (1262..1389) : Entradas de Rede Analógicas   | Ex: ${C.dim}set NAI1 100  ou  set DB1,WORD1262 100${C.reset}
+     • ${C.yellow}NQ${C.reset}  (1390..1405) : Saídas de Rede NQ1..NQ128      | Ex: ${C.dim}set NQ1 1  ou  set DB1,X1390.0 1${C.reset}
+     • ${C.yellow}NAQ${C.reset} (1406..1469) : Saídas de Rede Analógicas     | Ex: ${C.dim}set NAQ1 50  ou  set DB1,WORD1406 50${C.reset}
 
-  ${C.bold}⌨️  COMANDOS RÁPIDOS NO CONSOLE (Digite e dê Enter):${C.reset}
-     ${C.green}[1]${C.reset} Fechar Porta (I0.1=1)  ${C.green}[0]${C.reset} Abrir Porta (I0.1=0)  ${C.green}[t]${C.reset} Toggle Trava (NI1/DB1,X1246.0)
-     ${C.green}[s]${C.reset} Painel de Status       ${C.green}[?]${C.reset} Lista de Comandos    ${C.green}[q]${C.reset} Sair
+  ${C.bold}⌨️  COMANDOS PRINCIPAIS NO CONSOLE:${C.reset}
+     ${C.green}set <tag> <val>${C.reset}   : Definir valor (ex: set I1 1, set AI1 500, set Q1 1)
+     ${C.green}toggle <tag>${C.reset}      : Inverter bit digital (ex: toggle I1, toggle Q1, toggle NI1)
+     ${C.green}get <tag>${C.reset}         : Consultar valor (ex: get AI1, get Q1, get M1)
+     ${C.green}status${C.reset} ou ${C.green}s${C.reset}     : Ver painel geral de todas as memórias e I/O
+     ${C.green}view <bloco>${C.reset}      : Tabela detalhada (view I, view AI, view Q, view all)
+     ${C.green}help${C.reset} ou ${C.green}?${C.reset}        : Exibir lista completa de comandos
 `);
 }
 
@@ -1183,51 +1191,51 @@ ${C.cyan}${C.bold}╔═══════════════════�
 ║                             📖 MANUAL DE COMANDOS CLI                                 ║
 ╚═══════════════════════════════════════════════════════════════════════════════════════╝${C.reset}
 
-${C.bold}1. LEITURA E ESCRITA DIRETA DE TAGS:${C.reset}
-   • ${C.green}set <tag> <valor>${C.reset}    : Define valor de uma tag digital ou analógica
+${C.bold}1. CONTROLE E MANIPULAÇÃO DE ENTRADAS, SAÍDAS E MEMÓRIA:${C.reset}
+   • ${C.green}set <tag> <valor>${C.reset}    : Define o valor de qualquer tag digital, analógica ou endereço DB1
        Exemplos:
          set I1 1              (Liga entrada digital I1 / DB1,X1024.0)
-         set I0.1 0            (Abre a porta / I0.1 = 0)
+         set I1 0              (Desliga entrada digital I1)
          set AI1 750           (Define entrada analógica AI1 = 750 / DB1,WORD1032)
-         set DB1,X1246.0 1     (Aciona trava de rede NI1)
-         set Q1 1              (Liga saída digital Q1)
-         set AQ1 500           (Define saída analógica AQ1 = 500)
-   • ${C.green}toggle <tag>${C.reset} ou ${C.green}t <tag>${C.reset} : Inverte estado de uma tag digital (0 -> 1 -> 0)
-       Exemplos: toggle I1, toggle NI1, toggle Q1
-   • ${C.green}get <tag>${C.reset}            : Lê o valor atual de uma tag ou endereço
-       Exemplos: get AI1, get DB1,WORD1032, get I0.1, get M1
+         set Q1 1              (Liga saída digital Q1 / DB1,X1064.0)
+         set AQ1 500           (Define saída analógica AQ1 = 500 / DB1,WORD1072)
+         set M1 1              (Seta flag de memória M1 / DB1,X1104.0)
+         set AM1 250           (Define flag analógica AM1 = 250 / DB1,WORD1118)
+         set NI1 1             (Liga entrada de rede digital NI1 / DB1,X1246.0)
+         set NAI1 100          (Define entrada de rede analógica NAI1 = 100)
+         set NQ1 1             (Liga saída de rede digital NQ1 / DB1,X1390.0)
+         set NAQ1 80           (Define saída de rede analógica NAQ1 = 80)
+         set DB1,X1024.0 1     (Escrita direta por endereço S7)
+         set DB1,WORD1032 1500 (Escrita direta Word em DB1)
+
+   • ${C.green}toggle <tag>${C.reset} ou ${C.green}t <tag>${C.reset} : Inverte estado lógico de uma tag booleana (0 -> 1 -> 0)
+       Exemplos: toggle I1, toggle Q1, toggle M1, toggle NI1, t DB1,X1024.0
+
+   • ${C.green}get <tag>${C.reset}            : Lê o valor atual de qualquer variável ou endereço
+       Exemplos: get I1, get AI1, get Q1, get AQ1, get M1, get NI1, get DB1,WORD1032
 
 ${C.bold}2. VISUALIZAÇÃO E MONITORAMENTO:${C.reset}
-   • ${C.green}status${C.reset} ou ${C.green}s${C.reset}          : Exibe dashboard consolidado de todos os blocos ativos
-   • ${C.green}view <bloco>${C.reset}          : Mostra tabela detalhada de um bloco (I, AI, Q, AQ, M, AM, NI, NAI, NQ, NAQ, ALL)
-       Exemplos: view I, view AI, view Q, view NI, view all
-   • ${C.green}dump [inicio] [tam]${C.reset}   : Exibe Hex Dump dos bytes da memória VM (padrão: 1024 64)
+   • ${C.green}status${C.reset} ou ${C.green}s${C.reset}          : Exibe o painel consolidado com o status de todas as memórias e I/O
+   • ${C.green}view <bloco>${C.reset}          : Tabela completa do bloco (I, AI, Q, AQ, M, AM, NI, NAI, NQ, NAQ ou ALL)
+       Exemplos: view I, view AI, view Q, view AQ, view M, view NI, view all
+   • ${C.green}dump [inicio] [tam]${C.reset}   : Hex Dump da memória VM em bytes (padrão: 1024 64)
        Exemplo: dump 1024 32
-   • ${C.green}watch <tags>${C.reset}          : Monitoramento ao vivo em tempo real de tags separadas por vírgula
-       Exemplo: watch I1,I2,AI1,DB1,X1246.0
+   • ${C.green}watch <tags>${C.reset}          : Monitoramento dinâmico em tempo real de tags separadas por vírgula
+       Exemplo: watch I1,I2,Q1,AI1,AQ1,M1
 
-${C.bold}3. GERADORES DE SINAIS E SIMULAÇÃO DINÂMICA:${C.reset}
+${C.bold}3. GERADORES DE SINAIS DINÂMICOS:${C.reset}
    • ${C.green}wave <tag> [min] [max] [periodo_ms]${C.reset} : Gera onda senoidal contínua em tag analógica
        Exemplo: wave AI1 0 1000 5000  (Oscila AI1 entre 0 e 1000 a cada 5s)
-   • ${C.green}pulse <tag> [intervalo_ms]${C.reset}          : Gera pulso/clock liga/desliga contínuo
+   • ${C.green}pulse <tag> [intervalo_ms]${C.reset}          : Gera sinal de clock/pulso liga e desliga periódico
        Exemplo: pulse I1 1000         (Inverte I1 a cada 1 segundo)
-   • ${C.green}stopsim <id | all>${C.reset}                 : Para uma ou todas as simulações dinâmicas
-       Exemplos: stopsim 1, stopsim all
-   • ${C.green}listsim${C.reset}                            : Lista simulações ativas
+   • ${C.green}stopsim <id | all>${C.reset}                 : Interrompe gerador de sinais (ex: stopsim all)
+   • ${C.green}listsim${C.reset}                            : Lista os geradores ativos
 
-${C.bold}4. CENÁRIOS E PERSISTÊNCIA:${C.reset}
-   • ${C.green}scenario <nome>${C.reset}      : Aplica cenário pré-definido (balanca, esteira, tanque, limpo)
-       Exemplo: scenario balanca
+${C.bold}4. PERSISTÊNCIA E MEMÓRIA:${C.reset}
    • ${C.green}save [arquivo]${C.reset}       : Salva snapshot da memória VM em JSON (padrão: snapshot_logo.json)
-   • ${C.green}load [arquivo]${C.reset}       : Restaura snapshot da memória VM a partir de JSON
+   • ${C.green}load [arquivo]${C.reset}       : Restaura snapshot da memória VM de arquivo JSON
    • ${C.green}reset${C.reset}                : Zera todos os 2048 bytes da memória VM
-
-${C.bold}5. ATALHOS DE TECLADO RÁPIDOS:${C.reset}
-   [1] -> Porta Fechada (I0.1 = true)
-   [0] -> Porta Aberta (I0.1 = false)
-   [t] -> Inverter Trava (DB1,X1246.0)
-   [s] -> Painel de Status
-   [q] -> Sair do Simulador
+   • ${C.green}exit${C.reset} ou ${C.green}quit${C.reset} ou ${C.green}sair${C.reset} : Encerra o simulador
 `);
 }
 
@@ -1246,24 +1254,6 @@ export function executeCliCommand(inputLine) {
     const args = parts.slice(1);
 
     try {
-        // Atalhos de 1 caractere
-        if (cmd === '1') {
-            writeTagValue('I0.1', 1);
-            logSuccess(`Porta: ${C.bold}FECHADA${C.reset} (I0.1 = 1 / I2 = ON)`);
-            return;
-        }
-        if (cmd === '0') {
-            writeTagValue('I0.1', 0);
-            logWarn(`Porta: ${C.bold}ABERTA${C.reset} (I0.1 = 0 / I2 = OFF)`);
-            return;
-        }
-        if (cmd === 't' && args.length === 0) {
-            const current = getVmBit(1246, 0);
-            setVmBit(1246, 0, !current);
-            const nv = !current;
-            logSuccess(`Trava NI1 (DB1,X1246.0): ${nv ? C.green + 'LIBERADA (1)' : C.yellow + 'BLOQUEADA (0)'}${C.reset}`);
-            return;
-        }
         if (cmd === 's' || cmd === 'status') {
             printStatusOverview();
             return;
@@ -1282,7 +1272,7 @@ export function executeCliCommand(inputLine) {
             case 'set':
             case 'write': {
                 if (args.length < 2) {
-                    logError(`Uso: set <tag> <valor>  (Ex: set I1 1, set AI1 500, set DB1,X1246.0 1)`);
+                    logError(`Uso: set <tag> <valor>  (Ex: set I1 1, set AI1 500, set Q1 1, set M1 1)`);
                     return;
                 }
                 const tag = args[0];
@@ -1295,7 +1285,7 @@ export function executeCliCommand(inputLine) {
             case 'toggle':
             case 't': {
                 if (args.length < 1) {
-                    logError(`Uso: toggle <tag>  (Ex: toggle I1, toggle NI1, toggle Q2)`);
+                    logError(`Uso: toggle <tag>  (Ex: toggle I1, toggle Q1, toggle NI1, toggle M1)`);
                     return;
                 }
                 const tag = args[0];
@@ -1313,7 +1303,7 @@ export function executeCliCommand(inputLine) {
             case 'get':
             case 'read': {
                 if (args.length < 1) {
-                    logError(`Uso: get <tag>  (Ex: get AI1, get Q1, get DB1,WORD1032)`);
+                    logError(`Uso: get <tag>  (Ex: get I1, get AI1, get Q1, get AQ1, get M1)`);
                     return;
                 }
                 const tag = args[0];
@@ -1346,7 +1336,7 @@ export function executeCliCommand(inputLine) {
             case 'watch':
             case 'monitor': {
                 if (args.length < 1) {
-                    logError(`Uso: watch <tag1,tag2,...>  (Ex: watch I1,I2,AI1,DB1,X1246.0)`);
+                    logError(`Uso: watch <tag1,tag2,...>  (Ex: watch I1,I2,Q1,AI1,AQ1,M1)`);
                     return;
                 }
                 const tagList = args.join(',').split(',').map(s => s.trim()).filter(Boolean);
@@ -1409,7 +1399,7 @@ export function executeCliCommand(inputLine) {
             case 'scenario':
             case 'cenario': {
                 if (args.length < 1) {
-                    logError(`Uso: scenario <balanca | esteira | tanque | limpo>`);
+                    logError(`Uso: scenario <esteira | tanque | limpo>`);
                     return;
                 }
                 const msg = applyScenario(args[0]);
@@ -1452,8 +1442,8 @@ export function executeCliCommand(inputLine) {
 // ── Inicialização do Servidor e Interface CLI ─────────────────────────
 
 server.listen(PORT, HOST, () => {
-    // Configura cenário inicial padrão (Balança Martinrea)
-    applyScenario('balanca');
+    // Memória inicial limpa (zerada)
+    vmBuffer.fill(0);
 
     printBanner();
 
