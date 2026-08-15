@@ -7,6 +7,7 @@ Simulador de CLP Siemens LOGO! de alta performance desenvolvido em **Node.js**, 
 ## 🌟 Características Principais
 
 - **Simulação Completa de I/O e Memória**: Controle total sobre todas as entradas digitais (I), entradas analógicas (AI), saídas digitais (Q), saídas analógicas (AQ), flags de memória (M), flags analógicas (AM) e dados de rede (NI, NAI, NQ, NAQ).
+- **Envio Remoto de Comandos (`comando.js`)**: Permite enviar comandos a partir de outro terminal ou script sem precisar interagir com a janela do servidor.
 - **Compatibilidade Total S7**: Funciona nativamente com NodeS7, Node-RED (`node-red-contrib-s7`), Snap7 (Python/C++), Kepware, ScadaBR, WinCC e softwares industriais.
 - **Interface CLI Interativa**: Console com cores ANSI, tabelas de status, consultas rápidas e comandos intuitivos (`set`, `get`, `toggle`, `status`, `view`).
 - **Geradores de Sinais Dinâmicos**: Permite simular oscilação senoidal em variáveis analógicas (`wave`) e sinais periódicos de pulso/clock (`pulse`).
@@ -34,14 +35,29 @@ Simulador de CLP Siemens LOGO! de alta performance desenvolvido em **Node.js**, 
 
 ## 🚀 Como Executar
 
-### 1. Iniciar o Simulador
+### 1. Iniciar o Servidor Simulador (Terminal 1)
 ```bash
 npm start
 # ou
 node simulador_logo.js
 ```
 
-### 2. Rodar os Testes Automatizados
+### 2. Enviar Comandos Remotamente (Terminal 2)
+```bash
+# Executar comando direto e rápido:
+node comando.js set I1 1
+node comando.js set AI1 500
+node comando.js toggle Q1
+node comando.js get AI1
+node comando.js status
+
+# Ou abrir o console interativo remoto:
+npm run cli
+# ou
+node comando.js
+```
+
+### 3. Rodar a Suite de Testes Automatizados
 ```bash
 npm test
 # ou
@@ -50,19 +66,14 @@ node teste_cliente_logo.js
 
 ---
 
-## ⌨️ Comandos Principais no Console
+## ⌨️ Tabela de Comandos do `comando.js`
 
 | Comando | Descrição | Exemplo |
 |---|---|---|
-| `set <tag> <val>` | Define o valor de uma variável digital ou analógica | `set I1 1` ou `set AI1 500` |
-| `toggle <tag>` | Inverte o estado de uma variável booleana | `toggle Q1` ou `toggle M1` |
-| `get <tag>` | Lê o valor atual de qualquer variável | `get AI1` ou `get Q1` |
-| `status` ou `s` | Exibe o painel geral de todas as memórias e I/O | `status` |
-| `view <bloco>` | Exibe a tabela completa de um bloco específico | `view I`, `view AI`, `view Q`, `view all` |
-| `wave <tag> [min] [max] [ms]` | Inicia gerador de onda senoidal analógica | `wave AI1 0 1000 5000` |
-| `pulse <tag> [ms]` | Inicia gerador de pulsos/clock digital | `pulse I1 500` |
-| `save [arquivo]` | Salva snapshot da memória em JSON | `save` |
-| `load [arquivo]` | Carrega snapshot da memória de JSON | `load` |
-| `reset` | Zera toda a memória VM (todos os 2048 bytes = 0) | `reset` |
+| `set <tag> <val>` | Define o valor de uma variável digital ou analógica | `node comando.js set I1 1` |
+| `toggle <tag>` | Inverte o estado de uma variável booleana | `node comando.js toggle Q1` |
+| `get <tag>` | Lê o valor atual de qualquer variável | `node comando.js get AI1` |
+| `status` | Exibe o painel geral remoto de todas as memórias e I/O | `node comando.js status` |
+| `pulse <tag> [ms] [vezes]` | Envia pulsos periódicos em uma entrada digital | `node comando.js pulse I1 500 5` |
 
 👉 Para o manual completo com todos os comandos e exemplos, consulte o [COMANDOS.md](file:///c:/logoSimulado/COMANDOS.md).

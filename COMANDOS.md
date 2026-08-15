@@ -7,12 +7,13 @@ Este documento contém o guia completo e detalhado de todos os comandos do **Sim
 ## 📑 Sumário
 
 - [1. Visão Geral do Mapa de Memória VM](#1-visão-geral-do-mapa-de-memória-vm)
-- [2. Comandos de Manipulação de Entradas, Saídas e Memórias](#2-comandos-de-manipulação-de-entradas-saídas-e-memórias)
-- [3. Comandos de Visualização e Monitoramento](#3-comandos-de-visualização-e-monitoramento)
-- [4. Geradores de Sinais e Simulação Dinâmica](#4-geradores-de-sinais-e-simulação-dinâmica)
-- [5. Persistência de Estado (Salvar e Carregar)](#5-persistência-de-estado-salvar-e-carregar)
-- [6. Guia de Endereçamento e Notações Suportadas](#6-guia-de-endereçamento-e-notações-suportadas)
-- [7. Integração com Node-RED, NodeS7 e SCADA](#7-integração-com-node-red-nodes7-e-scada)
+- [2. Envio de Comandos Fora do Script (comando.js)](#2-envio-de-comandos-fora-do-script-comandojs)
+- [3. Comandos de Manipulação de Entradas, Saídas e Memórias](#3-comandos-de-manipulação-de-entradas-saídas-e-memórias)
+- [4. Comandos de Visualização e Monitoramento](#4-comandos-de-visualização-e-monitoramento)
+- [5. Geradores de Sinais e Simulação Dinâmica](#5-geradores-de-sinais-e-simulação-dinâmica)
+- [6. Persistência de Estado (Salvar e Carregar)](#6-persistência-de-estado-salvar-e-carregar)
+- [7. Guia de Endereçamento e Notações Suportadas](#7-guia-de-endereçamento-e-notações-suportadas)
+- [8. Integração com Node-RED, NodeS7 e SCADA](#8-integração-com-node-red-nodes7-e-scada)
 
 ---
 
@@ -35,7 +36,53 @@ O simulador emula com 100% de exatidão todo o mapa de memória VM (**DB1**) do 
 
 ---
 
-## 2. Comandos de Manipulação de Entradas, Saídas e Memórias
+## 2. Envio de Comandos Fora do Script (comando.js)
+
+Se o simulador (`simulador_logo.js`) estiver rodando em segundo plano ou em outro terminal, você pode usar o script **`comando.js`** em um novo terminal para enviar comandos remotamente via protocolo S7 ISO-on-TCP:
+
+### Modo 1: Execução Direta em Linha de Comando
+Execute um comando único e o script aplica a alteração no CLP e encerra:
+
+```bash
+# Definir valores de entradas, saídas e analógicas
+node comando.js set I1 1
+node comando.js set I2 0
+node comando.js set AI1 500
+node comando.js set Q1 1
+node comando.js set AQ1 750
+node comando.js set M1 1
+
+# Inverter estado lógico de bits (toggle)
+node comando.js toggle Q1
+node comando.js toggle I1
+node comando.js toggle NI1
+
+# Consultar valores atuais (get)
+node comando.js get AI1
+node comando.js get I1
+node comando.js get Q1
+node comando.js get DB1,WORD1032
+
+# Ver o painel completo de status remoto do CLP
+node comando.js status
+
+# Enviar pulsos repetidos
+node comando.js pulse I1 500 10    # Pulsa I1 10 vezes a cada 500ms
+```
+
+### Modo 2: Console Interativo Remoto
+Execute sem argumentos para abrir um terminal interativo exclusivo de controle do CLP:
+
+```bash
+node comando.js
+# ou
+npm run cli
+```
+Dentro do terminal remoto, basta digitar qualquer comando (`set I1 1`, `toggle Q1`, `status`, `get AI1`, etc.).
+
+---
+
+## 3. Comandos de Manipulação de Entradas, Saídas e Memórias
 
 ### `set <tag> <valor>` ou `write <tag> <valor>`
 Define o valor de qualquer variável digital (booleana), analógica (16-bit Word), byte, dword ou ponto flutuante.
@@ -124,7 +171,7 @@ LOGO-CLP > get DB1,WORD1032      # Lê pelo endereço absoluto S7
 
 ---
 
-## 3. Comandos de Visualização e Monitoramento
+## 4. Comandos de Visualização e Monitoramento
 
 ### `status` ou `s`
 Exibe o painel consolidado com o status de todas as entradas, saídas, analógicas, flags e memórias do CLP.
@@ -151,18 +198,10 @@ Exibe a tabela detalhada com endereços S7, bytes, bits, tipos e valores atuais 
 - `view NAQ` : Saídas de Rede Analógicas (NAQ1..NAQ32)
 - `view all` : Exibe todos os blocos em sequência
 
-#### Exemplos:
-```bash
-LOGO-CLP > view I
-LOGO-CLP > view AI
-LOGO-CLP > view Q
-LOGO-CLP > view all
-```
-
 ---
 
 ### `watch <tag1,tag2,...>`
-Inicia o modo de monitoramento dinâmico em tempo real na linha do console. Atualiza a cada 500ms. Para sair, basta pressionar `Enter` ou digitar qualquer comando.
+Inicia o modo de monitoramento dinâmico em tempo real na linha do console. Atualiza a cada 500ms.
 
 #### Exemplos:
 ```bash
@@ -179,23 +218,14 @@ Gera um Hex Dump formatado com endereço hexadecimal, decimal e caracteres ASCII
 ```bash
 LOGO-CLP > dump                  # Exibe 64 bytes a partir do byte 1024
 LOGO-CLP > dump 1024 32          # Exibe os 32 bytes das entradas I e analógicas AI
-LOGO-CLP > dump 1064 32          # Exibe as saídas Q e saídas analógicas AQ
 ```
 
 ---
 
-## 4. Geradores de Sinais e Simulação Dinâmica
-
-Permite criar testes contínuos para simular sensores de processo, oscilações analógicas ou sinais de pulso/clock periódicos.
+## 5. Geradores de Sinais e Simulação Dinâmica
 
 ### `wave <tag> [min] [max] [periodo_ms]` ou `onda <tag> ...`
 Gera uma onda senoidal contínua e suave em uma variável analógica.
-
-#### Parâmetros:
-- `<tag>`: Tag analógica (ex: `AI1`, `AQ1`, `AM1`, `NAI1`, `NAQ1`, `DB1,WORD1032`)
-- `[min]`: Valor mínimo (padrão: `0`)
-- `[max]`: Valor máximo (padrão: `1000`)
-- `[periodo_ms]`: Período do ciclo em milissegundos (padrão: `5000` = 5s)
 
 #### Exemplos:
 ```bash
@@ -208,38 +238,15 @@ LOGO-CLP > wave AI2 100 500 2000       # Oscila AI2 entre 100 e 500 a cada 2 seg
 ### `pulse <tag> [intervalo_ms]` ou `clock <tag> ...`
 Gera um sinal de clock/pulso liga e desliga periódico em uma tag digital.
 
-#### Parâmetros:
-- `<tag>`: Tag digital (ex: `I1`, `Q1`, `M1`, `NI1`, `DB1,X1024.0`)
-- `[intervalo_ms]`: Intervalo de alternância em milissegundos (padrão: `1000` = 1s)
-
 #### Exemplos:
 ```bash
 LOGO-CLP > pulse I1 500          # Alterna I1 a cada 500ms (simulação de encoder/sensor)
-LOGO-CLP > pulse M1 1000         # Alterna M1 a cada 1 segundo (clock de sistema)
+LOGO-CLP > pulse M1 1000         # Alterna M1 a cada 1 segundo
 ```
 
 ---
 
-### `listsim`
-Lista todos os geradores dinâmicos ativos com seus respectivos IDs.
-
-```bash
-LOGO-CLP > listsim
-```
-
----
-
-### `stopsim <id | all>` ou `stop <id | all>`
-Para uma simulação específica ou todas.
-
-```bash
-LOGO-CLP > stopsim 1
-LOGO-CLP > stopsim all
-```
-
----
-
-## 5. Persistência de Estado (Salvar e Carregar)
+## 6. Persistência de Estado (Salvar e Carregar)
 
 ### `save [caminho_arquivo]`
 Salva um snapshot de toda a memória VM (2048 bytes) em arquivo JSON.
@@ -270,7 +277,7 @@ LOGO-CLP > reset
 
 ---
 
-## 6. Guia de Endereçamento e Notações Suportadas
+## 7. Guia de Endereçamento e Notações Suportadas
 
 ### 1. Notação Amigável do LOGO!:
 - **Digitais**: `I1` a `I64`, `Q1` a `Q64`, `M1` a `M112`, `NI1` a `NI128`, `NQ1` a `NQ128`
@@ -290,7 +297,7 @@ LOGO-CLP > reset
 
 ---
 
-## 7. Integração com Node-RED, NodeS7 e SCADA
+## 8. Integração com Node-RED, NodeS7 e SCADA
 
 ### Parâmetros de Conexão:
 - **Protocolo**: ISO-on-TCP (RFC 1006 / S7Comm)
@@ -304,11 +311,17 @@ LOGO-CLP > reset
 ## 🚀 Como Iniciar
 
 ```bash
-# Iniciar o simulador
+# 1. Iniciar o simulador (em um terminal):
 npm start
 # ou
 node simulador_logo.js
 
-# Rodar os testes de validação
-npm test
+# 2. Enviar comandos fora do script (em outro terminal):
+node comando.js set I1 1
+node comando.js set AI1 500
+node comando.js toggle Q1
+node comando.js status
+
+# 3. Ou abrir o console interativo remoto:
+npm run cli
 ```

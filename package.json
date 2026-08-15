@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node simulador_logo.js",
     "sim": "node simulador_logo.js",
+    "cmd": "node comando.js",
+    "cli": "node comando.js",
     "test": "node teste_cliente_logo.js"
   },
   "keywords": [
