@@ -34,7 +34,7 @@
 
 import net from 'net';
 import fs from 'fs';
-import readline from 'readline';
+import os from 'os';
 
 // ── Configurações do Servidor ─────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '102', 10);
@@ -1131,359 +1131,61 @@ function loadSnapshot(filePath = 'snapshot_logo.json') {
     throw new Error(`Formato de snapshot inválido em "${filePath}".`);
 }
 
-// ── Modo Watch (Monitoramento em tempo real) ──────────────────────────
-
-function startWatch(tags) {
-    if (watchInterval) clearInterval(watchInterval);
-    watchTags = tags;
-    console.log(`\n${C.green}👁 Modo Watch ATIVO para: ${tags.join(', ')} (Pressione Enter ou qualquer comando para sair)${C.reset}`);
-    watchInterval = setInterval(() => {
-        const readings = watchTags.map(t => {
-            try {
-                const res = readTagValue(t);
-                let valStr = res.value;
-                if (typeof res.value === 'boolean') {
-                    valStr = res.value ? `${C.green}ON(1)${C.reset}` : `${C.dim}OFF(0)${C.reset}`;
-                } else {
-                    valStr = `${C.yellow}${res.value}${C.reset}`;
-                }
-                return `${C.bold}${res.target.name}:${valStr}`;
-            } catch (e) {
-                return `${t}:${C.red}ERR${C.reset}`;
-            }
-        });
-        process.stdout.write(`\r[${ts()}] ${readings.join(' | ')}      `);
-    }, 500);
-}
-
-function stopWatch() {
-    if (watchInterval) {
-        clearInterval(watchInterval);
-        watchInterval = null;
-        console.log(`\n${C.yellow}👁 Modo Watch desativado.${C.reset}\n`);
-    }
-}
-
-// ── Ajuda Completa e Banner ───────────────────────────────────────────
+// ── Banner Inicial do Servidor ────────────────────────────────────────
 
 function printBanner() {
+    const interfaces = os.networkInterfaces();
+    const ips = [];
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                ips.push(`${C.cyan}${iface.address}${C.reset} (${name})`);
+            }
+        }
+    }
+    const ipListStr = ips.join(' | ') || `${C.cyan}127.0.0.1${C.reset}`;
+
     console.log(`
 ${C.cyan}${C.bold}╔═══════════════════════════════════════════════════════════════════════════════════════╗
 ║                   🏭 SIMULADOR CLP SIEMENS LOGO! (0BA7 / 0BA8 / 8.x)                  ║
 ║                  Protocolo S7 ISO-on-TCP (Porta ${PORT}) | RFC 1006 / S7Comm                ║
 ╚═══════════════════════════════════════════════════════════════════════════════════════╝${C.reset}
-  ${C.bold}🌐 Servidor S7 Escutando em:${C.reset} ${C.green}${HOST}:${PORT}${C.reset}
-  ${C.bold}⚙️  Configuração no Cliente (NodeS7 / Node-RED / SCADA):${C.reset}
-     - IP: ${C.cyan}127.0.0.1${C.reset} | Porta: ${C.cyan}${PORT}${C.reset} | Rack: ${C.cyan}0${C.reset} | Slot: ${C.cyan}1${C.reset} (ou TSAP 0x0100 / 0x0200)
-     - DB Padrão: ${C.cyan}DB1${C.reset} (cobrindo todo o mapa de memória VM)
+  ${C.bold}🌐 Status do Servidor:${C.reset} ${C.green}RUN (Ciclando varredura a cada 50ms)${C.reset}
+  ${C.bold}📡 Porta S7:${C.reset} ${C.green}${HOST}:${PORT}${C.reset}
+  ${C.bold}🖥️  IPs da Máquina:${C.reset} ${ipListStr}
+  ${C.bold}⚙️  Configuração no Node-RED / SCADA / IHM:${C.reset}
+     - IP: ${C.cyan}127.0.0.1${C.reset} (ou IP de rede desta máquina) | Porta: ${C.cyan}${PORT}${C.reset} | Rack: ${C.cyan}0${C.reset} | Slot: ${C.cyan}1${C.reset}
+     - Bloco DB: ${C.cyan}DB1${C.reset} (cobrindo todo o mapa de memória VM de 2048 bytes)
 
-  ${C.bold}📋 MAPEAMENTO DE BLOCOS DE MEMÓRIA (DB1):${C.reset}
-     • ${C.yellow}I${C.reset}   (1024..1031) : Entradas Digitais I1..I64      | Ex: ${C.dim}set I1 1  ou  set DB1,X1024.0 1${C.reset}
-     • ${C.yellow}AI${C.reset}  (1032..1063) : Entradas Analógicas AI1..AI16  | Ex: ${C.dim}set AI1 500  ou  set DB1,WORD1032 500${C.reset}
-     • ${C.yellow}Q${C.reset}   (1064..1071) : Saídas Digitais Q1..Q64        | Ex: ${C.dim}set Q1 1  ou  set DB1,X1064.0 1${C.reset}
-     • ${C.yellow}AQ${C.reset}  (1072..1103) : Saídas Analógicas AQ1..AQ16    | Ex: ${C.dim}set AQ1 750  ou  set DB1,WORD1072 750${C.reset}
-     • ${C.yellow}M${C.reset}   (1104..1117) : Flags Digitais M1..M112        | Ex: ${C.dim}set M1 1  ou  set DB1,X1104.0 1${C.reset}
-     • ${C.yellow}AM${C.reset}  (1118..1245) : Flags Analógicas AM1..AM64     | Ex: ${C.dim}set AM1 300  ou  set DB1,WORD1118 300${C.reset}
-     • ${C.yellow}NI${C.reset}  (1246..1261) : Entradas de Rede NI1..NI128    | Ex: ${C.dim}set NI1 1  ou  set DB1,X1246.0 1${C.reset}
-     • ${C.yellow}NAI${C.reset} (1262..1389) : Entradas de Rede Analógicas   | Ex: ${C.dim}set NAI1 100  ou  set DB1,WORD1262 100${C.reset}
-     • ${C.yellow}NQ${C.reset}  (1390..1405) : Saídas de Rede NQ1..NQ128      | Ex: ${C.dim}set NQ1 1  ou  set DB1,X1390.0 1${C.reset}
-     • ${C.yellow}NAQ${C.reset} (1406..1469) : Saídas de Rede Analógicas     | Ex: ${C.dim}set NAQ1 50  ou  set DB1,WORD1406 50${C.reset}
-
-  ${C.bold}⌨️  COMANDOS PRINCIPAIS NO CONSOLE:${C.reset}
-     ${C.green}set <tag> <val>${C.reset}   : Definir valor (ex: set I1 1, set AI1 500, set Q1 1)
-     ${C.green}toggle <tag>${C.reset}      : Inverter bit digital (ex: toggle I1, toggle Q1, toggle NI1)
-     ${C.green}get <tag>${C.reset}         : Consultar valor (ex: get AI1, get Q1, get M1)
-     ${C.green}status${C.reset} ou ${C.green}s${C.reset}     : Ver painel geral de todas as memórias e I/O
-     ${C.green}view <bloco>${C.reset}      : Tabela detalhada (view I, view AI, view Q, view all)
-     ${C.green}help${C.reset} ou ${C.green}?${C.reset}        : Exibir lista completa de comandos
+  ${C.yellow}${C.bold}💡 COMO ENVIAR COMANDOS E CONTROLAR O CLP SIMULADO:${C.reset}
+     Abra outro terminal na pasta do projeto e execute o ${C.cyan}comando.js${C.reset}:
+     • ${C.green}node comando.js set I1 1${C.reset}          (Liga entrada digital I1)
+     • ${C.green}node comando.js set AI1 750${C.reset}       (Define analógica AI1 = 750)
+     • ${C.green}node comando.js toggle Q1${C.reset}         (Inverte saída digital Q1)
+     • ${C.green}node comando.js status${C.reset}            (Exibe painel de status remoto)
+     • ${C.green}npm run cli${C.reset}                      (Abre o console interativo de comandos)
 `);
 }
 
-function printHelp() {
-    console.log(`
-${C.cyan}${C.bold}╔═══════════════════════════════════════════════════════════════════════════════════════╗
-║                             📖 MANUAL DE COMANDOS CLI                                 ║
-╚═══════════════════════════════════════════════════════════════════════════════════════╝${C.reset}
+// ── Ciclo de Varredura Contínuo (PLC Scan Cycle) ──────────────────────
+let plcScanCycles = 0;
+const plcScanInterval = setInterval(() => {
+    plcScanCycles++;
+    // Ciclo de scan contínuo de 50ms (mantém o CLP em estado RUN ativo)
+}, 50);
 
-${C.bold}1. CONTROLE E MANIPULAÇÃO DE ENTRADAS, SAÍDAS E MEMÓRIA:${C.reset}
-   • ${C.green}set <tag> <valor>${C.reset}    : Define o valor de qualquer tag digital, analógica ou endereço DB1
-       Exemplos:
-         set I1 1              (Liga entrada digital I1 / DB1,X1024.0)
-         set I1 0              (Desliga entrada digital I1)
-         set AI1 750           (Define entrada analógica AI1 = 750 / DB1,WORD1032)
-         set Q1 1              (Liga saída digital Q1 / DB1,X1064.0)
-         set AQ1 500           (Define saída analógica AQ1 = 500 / DB1,WORD1072)
-         set M1 1              (Seta flag de memória M1 / DB1,X1104.0)
-         set AM1 250           (Define flag analógica AM1 = 250 / DB1,WORD1118)
-         set NI1 1             (Liga entrada de rede digital NI1 / DB1,X1246.0)
-         set NAI1 100          (Define entrada de rede analógica NAI1 = 100)
-         set NQ1 1             (Liga saída de rede digital NQ1 / DB1,X1390.0)
-         set NAQ1 80           (Define saída de rede analógica NAQ1 = 80)
-         set DB1,X1024.0 1     (Escrita direta por endereço S7)
-         set DB1,WORD1032 1500 (Escrita direta Word em DB1)
-
-   • ${C.green}toggle <tag>${C.reset} ou ${C.green}t <tag>${C.reset} : Inverte estado lógico de uma tag booleana (0 -> 1 -> 0)
-       Exemplos: toggle I1, toggle Q1, toggle M1, toggle NI1, t DB1,X1024.0
-
-   • ${C.green}get <tag>${C.reset}            : Lê o valor atual de qualquer variável ou endereço
-       Exemplos: get I1, get AI1, get Q1, get AQ1, get M1, get NI1, get DB1,WORD1032
-
-${C.bold}2. VISUALIZAÇÃO E MONITORAMENTO:${C.reset}
-   • ${C.green}status${C.reset} ou ${C.green}s${C.reset}          : Exibe o painel consolidado com o status de todas as memórias e I/O
-   • ${C.green}view <bloco>${C.reset}          : Tabela completa do bloco (I, AI, Q, AQ, M, AM, NI, NAI, NQ, NAQ ou ALL)
-       Exemplos: view I, view AI, view Q, view AQ, view M, view NI, view all
-   • ${C.green}dump [inicio] [tam]${C.reset}   : Hex Dump da memória VM em bytes (padrão: 1024 64)
-       Exemplo: dump 1024 32
-   • ${C.green}watch <tags>${C.reset}          : Monitoramento dinâmico em tempo real de tags separadas por vírgula
-       Exemplo: watch I1,I2,Q1,AI1,AQ1,M1
-
-${C.bold}3. GERADORES DE SINAIS DINÂMICOS:${C.reset}
-   • ${C.green}wave <tag> [min] [max] [periodo_ms]${C.reset} : Gera onda senoidal contínua em tag analógica
-       Exemplo: wave AI1 0 1000 5000  (Oscila AI1 entre 0 e 1000 a cada 5s)
-   • ${C.green}pulse <tag> [intervalo_ms]${C.reset}          : Gera sinal de clock/pulso liga e desliga periódico
-       Exemplo: pulse I1 1000         (Inverte I1 a cada 1 segundo)
-   • ${C.green}stopsim <id | all>${C.reset}                 : Interrompe gerador de sinais (ex: stopsim all)
-   • ${C.green}listsim${C.reset}                            : Lista os geradores ativos
-
-${C.bold}4. PERSISTÊNCIA E MEMÓRIA:${C.reset}
-   • ${C.green}save [arquivo]${C.reset}       : Salva snapshot da memória VM em JSON (padrão: snapshot_logo.json)
-   • ${C.green}load [arquivo]${C.reset}       : Restaura snapshot da memória VM de arquivo JSON
-   • ${C.green}reset${C.reset}                : Zera todos os 2048 bytes da memória VM
-   • ${C.green}exit${C.reset} ou ${C.green}quit${C.reset} ou ${C.green}sair${C.reset} : Encerra o simulador
-`);
-}
-
-// ── Processador de Comandos do Console (CLI) ──────────────────────────
-
-export function executeCliCommand(inputLine) {
-    const raw = inputLine.trim();
-    if (!raw) return;
-
-    if (watchInterval) {
-        stopWatch();
-    }
-
-    const parts = raw.split(/\s+/);
-    const cmd = parts[0].toLowerCase();
-    const args = parts.slice(1);
-
-    try {
-        if (cmd === 's' || cmd === 'status') {
-            printStatusOverview();
-            return;
-        }
-        if (cmd === '?' || cmd === 'help' || cmd === 'h' || cmd === 'ajuda') {
-            printHelp();
-            return;
-        }
-        if (cmd === 'q' || cmd === 'exit' || cmd === 'quit' || cmd === 'sair') {
-            console.log(`\n${C.yellow}👋 Encerrando Simulador Siemens LOGO!... Até logo!${C.reset}\n`);
-            process.exit(0);
-        }
-
-        // Comandos estruturados
-        switch (cmd) {
-            case 'set':
-            case 'write': {
-                if (args.length < 2) {
-                    logError(`Uso: set <tag> <valor>  (Ex: set I1 1, set AI1 500, set Q1 1, set M1 1)`);
-                    return;
-                }
-                const tag = args[0];
-                const val = args[1];
-                const res = writeTagValue(tag, val);
-                logSuccess(`Escrita: ${C.cyan}${res.target.name}${C.reset} (${res.target.alias}) = ${C.yellow}${res.value}${C.reset}`);
-                break;
-            }
-
-            case 'toggle':
-            case 't': {
-                if (args.length < 1) {
-                    logError(`Uso: toggle <tag>  (Ex: toggle I1, toggle Q1, toggle NI1, toggle M1)`);
-                    return;
-                }
-                const tag = args[0];
-                const current = readTagValue(tag);
-                if (current.target.type !== 'bit') {
-                    logError(`Comando toggle suportado apenas para tags booleanas/bits.`);
-                    return;
-                }
-                const newVal = !current.value;
-                setVmBit(current.target.byteOff, current.target.bitOff, newVal);
-                logSuccess(`Toggle: ${C.cyan}${current.target.name}${C.reset} agora é ${newVal ? C.green + 'ON (1)' : C.dim + 'OFF (0)'}${C.reset}`);
-                break;
-            }
-
-            case 'get':
-            case 'read': {
-                if (args.length < 1) {
-                    logError(`Uso: get <tag>  (Ex: get I1, get AI1, get Q1, get AQ1, get M1)`);
-                    return;
-                }
-                const tag = args[0];
-                const res = readTagValue(tag);
-                let valDisplay = res.value;
-                if (typeof res.value === 'boolean') {
-                    valDisplay = res.value ? `${C.green}● ON (1)${C.reset}` : `${C.dim}○ OFF (0)${C.reset}`;
-                } else {
-                    valDisplay = `${C.yellow}${res.value}${C.reset}`;
-                }
-                console.log(`\n 🔎 ${C.bold}Leitura:${C.reset} ${C.cyan}${res.target.name}${C.reset} [${res.target.alias}] = ${valDisplay}\n`);
-                break;
-            }
-
-            case 'view':
-            case 'bloco': {
-                const blk = args[0] || 'I';
-                printBlockDetails(blk);
-                break;
-            }
-
-            case 'dump':
-            case 'hex': {
-                const start = parseInt(args[0] || '1024', 10);
-                const len = parseInt(args[1] || '64', 10);
-                dumpMemory(start, len);
-                break;
-            }
-
-            case 'watch':
-            case 'monitor': {
-                if (args.length < 1) {
-                    logError(`Uso: watch <tag1,tag2,...>  (Ex: watch I1,I2,Q1,AI1,AQ1,M1)`);
-                    return;
-                }
-                const tagList = args.join(',').split(',').map(s => s.trim()).filter(Boolean);
-                startWatch(tagList);
-                break;
-            }
-
-            case 'wave':
-            case 'onda': {
-                if (args.length < 1) {
-                    logError(`Uso: wave <tag_analogica> [min] [max] [periodo_ms]  (Ex: wave AI1 0 1000 5000)`);
-                    return;
-                }
-                const tag = args[0];
-                const minV = args[1] !== undefined ? parseFloat(args[1]) : 0;
-                const maxV = args[2] !== undefined ? parseFloat(args[2]) : 1000;
-                const per = args[3] !== undefined ? parseInt(args[3], 10) : 5000;
-                const id = startWaveSimulation(tag, minV, maxV, per);
-                logSuccess(`Simulação de Onda #${id} iniciada em ${tag} [${minV}..${maxV}] (${per}ms)`);
-                break;
-            }
-
-            case 'pulse':
-            case 'clock': {
-                if (args.length < 1) {
-                    logError(`Uso: pulse <tag_digital> [intervalo_ms]  (Ex: pulse I1 1000)`);
-                    return;
-                }
-                const tag = args[0];
-                const interval = args[1] !== undefined ? parseInt(args[1], 10) : 1000;
-                const id = startPulseSimulation(tag, interval);
-                logSuccess(`Simulação de Pulso #${id} iniciada em ${tag} (${interval}ms)`);
-                break;
-            }
-
-            case 'stopsim':
-            case 'stop': {
-                if (args.length < 1) {
-                    logError(`Uso: stopsim <id | all>`);
-                    return;
-                }
-                const res = stopSimulation(args[0]);
-                logSuccess(res);
-                break;
-            }
-
-            case 'listsim': {
-                if (activeSimulations.size === 0) {
-                    console.log(`\n ℹ Nenhuma simulação dinâmica ativa no momento.\n`);
-                } else {
-                    console.log(`\n${C.magenta}${C.bold}⚡ SIMULAÇÕES DINÂMICAS ATIVAS (${activeSimulations.size}):${C.reset}`);
-                    for (const [id, sim] of activeSimulations.entries()) {
-                        console.log(`   [#${id}] ${sim.info}`);
-                    }
-                    console.log('');
-                }
-                break;
-            }
-
-            case 'scenario':
-            case 'cenario': {
-                if (args.length < 1) {
-                    logError(`Uso: scenario <esteira | tanque | limpo>`);
-                    return;
-                }
-                const msg = applyScenario(args[0]);
-                logSuccess(msg);
-                printStatusOverview();
-                break;
-            }
-
-            case 'save': {
-                const path = args[0] || 'snapshot_logo.json';
-                const msg = saveSnapshot(path);
-                logSuccess(msg);
-                break;
-            }
-
-            case 'load': {
-                const path = args[0] || 'snapshot_logo.json';
-                const msg = loadSnapshot(path);
-                logSuccess(msg);
-                printStatusOverview();
-                break;
-            }
-
-            case 'reset': {
-                const msg = applyScenario('limpo');
-                logSuccess(msg);
-                printStatusOverview();
-                break;
-            }
-
-            default:
-                logError(`Comando não reconhecido: "${cmd}". Digite "?" ou "help" para ver a lista de comandos.`);
-                break;
-        }
-    } catch (err) {
-        logError(`Erro: ${err.message}`);
-    }
-}
-
-// ── Inicialização do Servidor e Interface CLI ─────────────────────────
+// ── Inicialização do Servidor TCP S7 ──────────────────────────────────
 
 server.listen(PORT, HOST, () => {
     // Memória inicial limpa (zerada)
     vmBuffer.fill(0);
 
     printBanner();
-
-    // Interface de linha de comando iterativa com Readline
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-        prompt: `${C.cyan}LOGO-CLP > ${C.reset}`
-    });
-
-    rl.prompt();
-
-    rl.on('line', (line) => {
-        executeCliCommand(line);
-        if (!watchInterval) {
-            rl.prompt();
-        }
-    });
-
-    rl.on('close', () => {
-        console.log(`\n${C.yellow}👋 Simulador encerrado.${C.reset}\n`);
-        process.exit(0);
-    });
+    log(`${C.green}✔ CLP Siemens LOGO! iniciado com sucesso e aguardando conexões S7.${C.reset}\n`);
 });
 
 process.on('SIGINT', () => {
+    clearInterval(plcScanInterval);
     console.log(`\n\n${C.yellow}👋 Simulador Siemens LOGO! encerrado com sucesso.${C.reset}`);
     process.exit(0);
 });
