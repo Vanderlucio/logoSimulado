@@ -613,7 +613,7 @@ export const server = net.createServer((socket) => {
                     const logDetails = [];
 
                     for (let i = 0; i < itemCount && off + 12 <= pkt.length; i++) {
-                        const transportSize = pkt[off + 3]; // 0x01/0x02 = BIT, 0x04 = BYTE/WORD/DWORD
+                        const transportSize = pkt[off + 3]; // 0x01 = BIT, 0x02 = BYTE, 0x04 = WORD/DWORD
                         const reqLength     = pkt.readUInt16BE(off + 4); // Quantidade solicitada
                         const dbNum         = pkt.readUInt16BE(off + 6);
                         const area          = pkt[off + 8];
@@ -626,15 +626,23 @@ export const server = net.createServer((socket) => {
                         let itemBuf;
                         let desc = '';
 
-                        // Leitura de BIT (TransportSize = 0x01 ou 0x02)
-                        if (transportSize === 0x01 || transportSize === 0x02) {
+                        // Leitura de BIT específico (quando transportSize é 0x01 ou há offset de bit explícito)
+                        const isBitRead = (transportSize === 0x01) || (reqLength === 1 && transportSize === 0x02 && bitOff !== 0) || (transportSize === 0x02 && bitOff !== 0);
+
+                        if (isBitRead) {
                             const bitVal = getVmBit(vmByte, bitOff) ? 1 : 0;
-                            // Resposta de Bit: Return Code 0xFF (OK), Data Type 0x03 (BIT), Length 0x0001 (1 bit), Dados = 0x01 ou 0x00
+                            // Resposta S7 de Bit: Return Code 0xFF (OK), Data Type 0x03 (BIT), Length 0x0001 (1 bit), Dados = 0x01 ou 0x00
                             itemBuf = Buffer.from([0xFF, 0x03, 0x00, 0x01, bitVal]);
                             desc = `BIT [${getFriendlyNameForVmBit(vmByte, bitOff)}] = ${bitVal === 1 ? 'ON (1)' : 'OFF (0)'}`;
                         } else {
                             // Leitura em Bytes / Words / DWords
-                            const numBytes = reqLength; // Para transport 0x04, length é número de bytes ou words
+                            let numBytes = reqLength;
+                            if (transportSize === 0x04 || transportSize === 0x05) { // WORD / INT = 2 bytes por item
+                                numBytes = reqLength * 2;
+                            } else if (transportSize === 0x06 || transportSize === 0x07 || transportSize === 0x08) { // DWORD / DINT / REAL = 4 bytes por item
+                                numBytes = reqLength * 4;
+                            }
+
                             const byteSlice = Buffer.alloc(numBytes);
                             for (let b = 0; b < numBytes; b++) {
                                 byteSlice[b] = getVmByte(vmByte + b);
@@ -651,7 +659,7 @@ export const server = net.createServer((socket) => {
                             } else if (numBytes === 1) {
                                 desc = `BYTE [VM ${vmByte}] = 0x${byteSlice[0].toString(16).padStart(2, '0')} (${byteSlice[0]})`;
                             } else {
-                                desc = `BYTES [VM ${vmByte}..${vmByte + numBytes - 1}] (${numBytes} bytes)`;
+                                desc = `BYTES [VM ${vmByte}..${vmByte + numBytes - 1}] (${numBytes}B)`;
                             }
                         }
 
@@ -705,26 +713,32 @@ export const server = net.createServer((socket) => {
 
                         // Lê o bloco de dados enviado pelo cliente
                         if (dataOff + 4 <= pkt.length) {
-                            const returnCode = pkt[dataOff];      // Reservado no request (geralmente 0x00 ou tipo)
+                            const returnCode = pkt[dataOff];
                             const dataType   = pkt[dataOff + 1];  // 0x03 = BIT, 0x04 = BYTE/WORD
                             const bitLen     = pkt.readUInt16BE(dataOff + 2);
-                            const byteLen    = dataType === 0x03 ? 1 : Math.ceil(bitLen / 8);
+                            const byteLen    = dataType === 0x03 ? 1 : Math.max(1, Math.ceil(bitLen / 8));
                             const valData    = pkt.slice(dataOff + 4, dataOff + 4 + byteLen);
 
-                            if (dataType === 0x03 || transportSize === 0x01 || transportSize === 0x02) {
-                                const bVal = valData.length > 0 && valData[0] !== 0;
+                            // Identifica se é escrita em BIT
+                            const isBitWrite = (dataType === 0x03) || (transportSize === 0x01) || (bitLen === 1) || (bitOff !== 0);
+
+                            if (isBitWrite) {
+                                const bVal = valData.length > 0 && (valData[0] === 1 || valData[0] === 0xFF || (valData[0] & (1 << bitOff)) !== 0 || valData[0] !== 0);
                                 setVmBit(vmByte, bitOff, bVal);
                                 const friendly = getFriendlyNameForVmBit(vmByte, bitOff);
-                                writeDetails.push(`BIT [${friendly}] <- ${bVal ? 'ON (1)' : 'OFF (0)'}`);
+                                writeDetails.push(`BIT [${friendly} / DB1,X${vmByte}.${bitOff}] <- ${bVal ? 'ON (1)' : 'OFF (0)'}`);
                             } else {
+                                // Escrita em bytes / words / dwords
                                 for (let b = 0; b < valData.length; b++) {
                                     setVmByte(vmByte + b, valData[b]);
                                 }
                                 if (valData.length === 2) {
                                     const wVal = valData.readInt16BE(0);
-                                    writeDetails.push(`WORD [${getFriendlyNameForVmWord(vmByte)}] <- ${wVal}`);
+                                    writeDetails.push(`WORD [${getFriendlyNameForVmWord(vmByte)} / DB1,WORD${vmByte}] <- ${wVal}`);
+                                } else if (valData.length === 1) {
+                                    writeDetails.push(`BYTE [VM ${vmByte} / DB1,BYTE${vmByte}] <- 0x${valData[0].toString(16).padStart(2, '0')} (${valData[0]})`);
                                 } else {
-                                    writeDetails.push(`BYTES [VM ${vmByte}] (${valData.length}B) <- [${Array.from(valData).map(x => '0x' + x.toString(16)).join(',')}]`);
+                                    writeDetails.push(`BYTES [VM ${vmByte}..${vmByte + valData.length - 1}] (${valData.length}B)`);
                                 }
                             }
 
