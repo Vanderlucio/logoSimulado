@@ -4,6 +4,92 @@ Simulador de CLP Siemens LOGO! de alta performance e fidelidade industrial desen
 
 ---
 
+## 📥 Como Baixar, Instalar e Executar (Passo a Passo)
+
+Siga o passo a passo abaixo para clonar o repositório, preparar o ambiente e rodar o simulador:
+
+### 1. Pré-requisitos
+Antes de começar, certifique-se de ter instalado em seu computador:
+- **Git**: [https://git-scm.com](https://git-scm.com) (para baixar o projeto)
+- **Node.js** (versão 18 ou superior): [https://nodejs.org](https://nodejs.org)
+
+Para verificar se já estão instalados, abra o terminal e digite:
+```bash
+git --version
+node -v
+npm -v
+```
+
+---
+
+### 2. Clonar o Repositório com Git
+Abra o seu terminal (Prompt de Comando, PowerShell ou Terminal Linux/Mac) e execute o comando de clone:
+```bash
+git clone https://github.com/Vanderlucio/logoSimulado.git
+```
+
+---
+
+### 3. Acessar a Pasta do Projeto
+> ⚠️ **MUITO IMPORTANTE**: O seu terminal **DEVE estar aberto dentro da pasta do projeto** para executar qualquer comando.
+```bash
+cd logoSimulado
+```
+
+---
+
+### 4. Instalar os Módulos do Projeto
+Dentro da pasta `logoSimulado`, execute o comando:
+```bash
+npm install
+```
+
+---
+
+### 5. Iniciar o Servidor Simulador (Terminal 1)
+Inicie o simulador CLP na porta padrão 102:
+```bash
+npm start
+# ou
+node simulador_logo.js
+```
+O console exibirá o painel de status e ficará escutando as conexões de clientes como Node-RED, NodeS7, IHM, etc.
+
+---
+
+### 6. Enviar Comandos Remotamente (Terminal 2)
+Abra um **segundo terminal**, entre na pasta do projeto (`cd logoSimulado`) e envie comandos via `comando.js`:
+
+```bash
+# Definir valores de entradas, saídas e analógicas
+node comando.js set I1 1              # Liga entrada digital I1
+node comando.js set I2 0              # Desliga entrada digital I2
+node comando.js set AI1 750           # Seta entrada analógica AI1 = 750
+node comando.js set Q1 1              # Aciona saída digital Q1
+node comando.js set AQ1 500           # Seta saída analógica AQ1 = 500
+node comando.js set M1 1              # Seta flag digital M1
+node comando.js set NI1 1             # Seta entrada de rede NI1
+
+# Inverter (toggle) estado lógico
+node comando.js toggle I1
+node comando.js toggle Q1
+
+# Consultar valores atuais lidos do CLP
+node comando.js get AI1
+node comando.js get I1
+node comando.js get Q1
+
+# Ver o painel completo de status remoto do CLP
+node comando.js status
+
+# Abrir o console interativo remoto:
+npm run cli
+# ou
+node comando.js
+```
+
+---
+
 ## 🚀 Visão Geral e Propósito
 
 Este simulador foi projetado para permitir o desenvolvimento, homologação e testes de integração com CLPs Siemens LOGO! sem a necessidade do hardware físico presente na bancada. Ele atua como um servidor TCP ISO-on-TCP idêntico a um CLP real (modelos **LOGO! 0BA7**, **LOGO! 0BA8**, **LOGO! 8.1/8.2/8.3/8.4**), respondendo fielmente às requisições de leitura e escrita de sistemas como:
@@ -90,65 +176,17 @@ Para conectar o **Node-RED** ao simulador:
 
 ---
 
-## 📖 Formas de Uso e Execução
+## 🧪 Testes Automatizados
 
-### 1. Iniciar o Servidor Simulador (Terminal 1)
+No terminal dentro da pasta do projeto, execute as suites de testes:
+
 ```bash
-npm start
-# ou
-node simulador_logo.js
-```
-O console exibirá o status em tempo real, conexões de clientes e log de todas as requisições S7 de leitura e gravação.
-
----
-
-### 2. Enviar Comandos Remotamente via `comando.js` (Terminal 2)
-Se o simulador já estiver rodando, você pode enviar comandos sem tocar na tela do servidor:
-
-#### Modo Comando Rápido:
-```bash
-# Alterar entradas, saídas e analógicas
-node comando.js set I1 1              # Liga entrada digital I1
-node comando.js set I2 0              # Desliga entrada digital I2
-node comando.js set AI1 750           # Seta entrada analógica AI1 com 750
-node comando.js set Q1 1              # Aciona saída digital Q1
-node comando.js set AQ1 500           # Seta saída analógica AQ1 com 500
-node comando.js set M1 1              # Seta flag digital M1
-node comando.js set NI1 1             # Seta entrada de rede NI1
-
-# Inverter (toggle) estado lógico
-node comando.js toggle I1
-node comando.js toggle Q1
-
-# Consultar valores atuais
-node comando.js get AI1
-node comando.js get I1
-node comando.js get Q1
-
-# Ver o painel geral de status
-node comando.js status
-
-# Gerar pulsos periódicos de teste
-node comando.js pulse I1 500 10       # Pulsa I1 10 vezes a cada 500ms
-```
-
-#### Modo Terminal Interativo Remoto:
-```bash
-npm run cli
-# ou
-node comando.js
-```
-
----
-
-### 3. Executar as Suites de Testes Automatizados
-```bash
-# Teste de validação geral:
+# Teste de validação geral do protocolo S7:
 npm test
 # ou
 node teste_cliente_logo.js
 
-# Teste exaustivo de todas as 64 entradas, saídas e memórias:
+# Teste exaustivo de todas as entradas, saídas e memórias:
 node teste_completo_io.js
 ```
 
