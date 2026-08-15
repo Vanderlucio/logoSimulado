@@ -1,0 +1,25 @@
+{
+  "name": "simulador-clp-logo",
+  "version": "1.0.0",
+  "description": "Simulador Completo de CLP Siemens LOGO! (0BA7 / 0BA8 / LOGO! 8) via protocolo S7 ISO-on-TCP",
+  "type": "module",
+  "main": "simulador_logo.js",
+  "scripts": {
+    "start": "node simulador_logo.js",
+    "sim": "node simulador_logo.js",
+    "test": "node teste_cliente_logo.js"
+  },
+  "keywords": [
+    "siemens",
+    "logo",
+    "plc",
+    "clp",
+    "s7",
+    "nodes7",
+    "node-red",
+    "iso-on-tcp",
+    "simulator"
+  ],
+  "author": "Antigravity",
+  "license": "MIT"
+}
